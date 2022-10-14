@@ -1,0 +1,570 @@
+<!doctype>
+<html>
+<head>
+<title>Icons</title>
+<style type="text/css">
+/* icons by https://dribbble.com/shots/14276784-iOS-14-iCon-Dark-v2 */
+.grid-container {position:relative;width:100%;height:100%;}
+.grid-container.wobble {background:#e0e0e0;}
+.grid-container.wobble .icon-item {cursor:pointer;animation: jiggle 0.2s infinite;}
+.grid-container.wobble .icon-item-delete {display:block;}
+.cell-grid-item {position:absolute;z-index:1;/*border:1px solid #c90;box-sizing:border-box;*/pointer-events:none;}
+.cell-grid-item.hilite {border:1px solid #f00;}
+.icon-item {position:absolute;z-index:2;border-radius:10%;
+background-repeat:no-repeat;
+background-position:50% 50%;
+background-color:#222220;background-size:contain;text-align:center;font-family:sans-serif;}
+.icon-item.dragged {z-index:3;/*transform:scale(1.2);transition:transform 0.2s ease-in-out;*/}
+.icon-item.transitioned {
+	animation: none !important;
+	transition:all 0.2s ease-in-out;
+}
+.icon-item.transitioned2 {
+	animation: none !important;
+	transition:all 0.3s ease-in-out;
+}
+.icon-item.transitioned .icon-item-delete {
+	display:none;
+}
+.icon-item-delete {
+	display:none;
+	position:absolute;
+	right:0;
+	top:0;
+	border-radius:50%;
+	border:1px solid #ccc;
+	transform: translate(50%,-50%);
+	border:2px solid #333;
+	background:#fff;
+}
+.icon-item-delete:before {
+	content:'';
+	background:#fff url(delete.svg) no-repeat 50% 50%;
+	backgrond-size:none;
+	position:relative;
+	top:20%;
+	left: 20%;
+	display:block;
+	width:60%;
+	height:60%;
+}
+body {
+	background:#e0e0e0;
+	user-select:none !important;
+	padding:0;margin:0;
+}
+.body-while-dragging {
+	pointer-events: none !important;
+}
+
+@keyframes jiggle {
+	0% {
+		transform: rotate(-1.5deg);
+	}
+	50% {
+		transform: rotate(1.5deg);
+	}
+}
+</style>
+</head>
+<body>
+<div class="grid-container">
+
+</div>
+<script type="text/javascript">
+var gridSize = 192;
+var iconSize = 64;
+var wobbleDetectionTime = 1000;
+
+function GridCell(manager, size, left, top) {
+	this.manager = manager;
+	this.size = size;
+	this.top = top;
+	this.left = left;
+	this.icon = null;
+	this.debugItem = null;
+}
+
+GridCell.prototype = {
+	debugTo: function(root) {
+		var debugItem = document.createElement('div');
+		debugItem.className = 'cell-grid-item';
+		debugItem.style.width = this.size+'px';
+		debugItem.style.height =  this.size+'px';
+		debugItem.style.top = (this.top)+'px';
+		debugItem.style.left = (this.left)+'px';
+		root.appendChild(debugItem);
+		this.debugItem = debugItem;
+	},
+	destroy: function() {
+		if (this.debugItem) {
+			this.debugItem.parentNode.removeChild(this.debugItem);
+			this.debugItem = null;
+		}
+		this.icon = null;
+	},
+	coordsInside: function(x,y) {
+		var ret = (x>=this.left) && (x<(this.left+this.size)) && (y>=this.top) && (y<(this.top+this.size));
+		return ret;
+	}
+}
+
+function GridIcon(manager, size, backgroundImage) {
+	this.manager = manager;
+	this.dragX = 0;
+	this.dragY = 0;
+	this.size = size;
+	this.cell = null;
+	this.top = 0;
+	this.left = 0;
+	this.dragTop = 0;
+	this.dragLeft = 0;
+	this.debug = backgroundImage;;
+	var iconItem = document.createElement('div');
+	iconItem.title = backgroundImage;
+	iconItem.className = 'icon-item';
+	iconItem.style.width = iconSize+'px';
+	iconItem.style.height = iconSize+'px';
+	iconItem.style.lineHeight = iconSize+'px';
+	iconItem.style.fontSize = iconSize/2+'px';
+	iconItem.style.top = 0+'px';
+	iconItem.style.left = 0+'px';
+	iconItem.style.backgroundImage = 'url('+backgroundImage+')';
+	var del = document.createElement('div');
+	del.className = 'icon-item-delete';
+	del.style.height = iconSize/4+'px';
+	del.style.width = iconSize/4+'px';
+	var that = this;
+	del.onclick = function(e) {
+		manager.removeIcon(that);
+		return false;
+	};
+	iconItem.appendChild(del);
+	manager.root.appendChild(iconItem);
+	this.iconElement = iconItem;
+}
+
+GridIcon.prototype = {
+	disappear: function() {
+		var that = this;
+		return new Promise(function(resolve, reject) {
+			var el = that.iconElement;
+			el.style.transform = 'scale(1)';
+			el.classList.add('transitioned2');
+			window.setTimeout(function() {
+				el.style.transform = 'scale(0)';
+				el.addEventListener('transitionend', function() {
+					el.classList.remove('transitioned2');
+					el.parentNode.removeChild(el);
+					resolve();
+				});
+			}, 10);
+		});
+	},
+	appear: function() {
+		var that = this;
+		return new Promise(function(resolve, reject) {
+			var el = that.iconElement;
+			el.style.transform = 'scale(0)';
+			el.classList.add('transitioned2');
+			window.setTimeout(function() {
+				el.style.transform = 'scale(1)';
+				el.addEventListener('transitionend', function() {
+					el.classList.remove('transitioned2');
+					resolve();
+				});
+			}, 10);
+		});
+	},
+	bindTo: function(cell, bAnimate) {
+		this.cell = cell;
+		cell.icon = this;
+		this.top = (cell.top + cell.size/2 - this.size/2);
+		this.left = (cell.left + cell.size/2 - this.size/2);
+		var el = this.iconElement;
+		var newStyleTop = this.top + 'px';
+		var newStyleLeft = this.left + 'px';
+		if (newStyleTop!=el.style.top || newStyleLeft!=el.style.left) {
+			if (bAnimate) {
+				el.classList.add('transitioned');
+				el.addEventListener('transitionend', function() {
+					el.classList.remove('transitioned');
+				});
+			}
+			el.style.top = this.top + 'px';
+			el.style.left = this.left + 'px';
+		}
+	},
+	onDragStart: function(e) {
+		this.dragX = e.pageX;
+		this.dragY = e.pageY;
+		this.dragLeft = this.left + (-this.dragX + e.pageX);
+		this.dragTop = this.top + (-this.dragY + e.pageY);
+		this.iconElement.classList.add('dragged');
+	},
+	onDragMove: function(e) {
+		this.dragLeft = this.left + (-this.dragX + e.pageX);
+		this.dragTop = this.top + (-this.dragY + e.pageY);
+		this.onDragChange();
+	},
+	onDragScroll: function(deltaX, deltaY) {
+		this.dragLeft = this.dragLeft + deltaX;
+		this.dragTop = this.dragTop + deltaY;
+		this.onDragChange();
+	},
+	onDragChange: function() {
+		this.iconElement.style.top = this.dragTop + 'px';
+		this.iconElement.style.left = this.dragLeft + 'px';
+		var newCell = this.manager.getCellByCoordinates(this.dragLeft+this.size/2, this.dragTop+this.size/2);
+		if (newCell && newCell!=this.cell) {
+			var cells = this.manager.cells;
+			var oldCellIndex = cells.indexOf(this.cell);
+			var newCellIndex = cells.indexOf(newCell);
+			var iconsToMove = [];
+			if (newCellIndex<oldCellIndex) {
+				for (var index=newCellIndex; index<oldCellIndex; index++) {
+					iconsToMove.push(cells[index].icon);
+					cells[index].icon = null;
+				}
+				for (var index=0;index<iconsToMove.length;index++) {
+					iconsToMove[index].bindTo(cells[newCellIndex + index + 1], true);
+				}
+			} else if (newCellIndex>oldCellIndex) {
+				for (var index=newCellIndex; index>oldCellIndex; index--) {
+					iconsToMove.push(cells[index].icon);
+					cells[index].icon = null;
+				}
+				for (var index=0;index<iconsToMove.length;index++) {
+					iconsToMove[index].bindTo(cells[newCellIndex - index - 1], true);
+				}
+			}
+			this.cell = cells[newCellIndex];
+			cells[newCellIndex].icon = this;
+		}
+	},
+	onDragEnd: function(e) {
+		this.bindTo(this.cell, true);
+		this.iconElement.classList.remove('dragged');
+	},
+};
+
+function WobbleManager(manager, document, wobbleDetectionTime) {
+	this.manager = manager;
+	this.oWobbleDetectionTimeout = null;
+	this.wobbleDetectionTime = wobbleDetectionTime;
+	var that = this;
+	document.addEventListener('mousedown', function(e) {
+		that.wobbleDetectionStart(e);
+	});
+	document.addEventListener('mouseup', function(e) {
+		that.wobbleDetectionEnd();
+	});
+}
+
+WobbleManager.prototype = {
+	wobbleDetectionStart: function(e){
+		if (this.manager.wobbleActive) {
+			var el = e.target;
+			if (!this.manager.isDraggable(el) && !el.classList.contains('icon-item-delete')) {
+				this.manager.endWobble();
+			}
+		} else {
+			if (this.oWobbleDetectionTimeout) {
+				window.clearTimeout(this.oWobbleDetectionTimeout);
+				this.oWobbleDetectionTimeout = null;
+			}
+			this.oWobbleDetectionTimeout = window.setTimeout(function(){
+				this.manager.startWobble();
+			}, this.wobbleDetectionTime);
+		}
+	},
+	wobbleDetectionEnd: function(){
+		if (this.oWobbleDetectionTimeout) {
+			window.clearTimeout(this.oWobbleDetectionTimeout);
+			this.oWobbleDetectionTimeout = null;
+		}
+	},
+};
+
+function IconDragManager(manager, document) {
+	this.manager = manager;
+	this.enabled = false;
+	this.mouseDown = false;
+	this.drag = false;
+	this.dragIcon = null;
+	this.document = document;
+	this.scrollTop = 0;
+	this.scrollLeft = 0;
+
+	var that = this;
+	var mouseDownEvent = null;
+	document.addEventListener('mousedown', function(e) {
+		mouseDownEvent = e;
+		that.mouseDown = true;
+	});
+
+	document.addEventListener('mouseup', function(e) {
+		that.mouseDown = false;
+		e.target.ownerDocument.onselectstart = null;
+		that.onDragEnd(e);
+	});
+
+	document.addEventListener('mousemove', function(e) {
+		// TODO add possible number of pixel shift before drag can start to tolerate "shifty clicks" or touches
+		if (that.mouseDown && !that.drag) {
+			that.onDragStart(e);
+		}
+		if (that.drag) {
+			that.onDragMove(e);
+		}
+	});
+
+	document.addEventListener('mousewheel', function(e) {
+		if (that.mouseDown && !that.drag) {
+			that.onDragStart(e);
+		}
+	});
+
+	window.addEventListener('scroll', function(e) {
+		if (that.drag) {
+			that.onDragScroll(e);
+		}
+	});
+
+}
+
+IconDragManager.prototype = {
+	getIcons: function(){
+		return this.manager.icons;
+	},
+
+	onDragStart: function(e)  {
+		if (!this.enabled) {
+			return;
+		}
+		var el = e.target;
+		if (this.manager.isDraggable(el)) {
+			this.document.body.classList.add('body-while-dragging');
+			var iconToDrag = this.getIcons().find(function(icon){return icon.iconElement == el});
+			if (iconToDrag) {
+				this.drag = true;
+				this.scrollTop = document.body.scrollTop;
+				this.scrollLeft = document.body.scrollLeft;
+				this.dragIcon = iconToDrag;
+				this.dragIcon.onDragStart(e);
+			}
+		}
+	},
+	onDragEnd: function(e) {
+		this.document.body.classList.remove('body-while-dragging');
+		this.drag = false;
+		if (this.dragIcon) {
+			this.dragIcon.onDragEnd(e);
+			this.dragIcon = null;
+		}
+	},
+	onDragMove: function(e) {
+		if (!this.drag) {
+			return;
+		}
+		if (this.dragIcon) {
+			var that = this;
+			if (this.raf) {
+				window.cancelAnimationFrame(this.raf);
+				this.raf = null;
+			}
+			this.raf = window.requestAnimationFrame(function() {
+				that.raf = null;
+				that.dragIcon && that.dragIcon.onDragMove(e);
+			});
+		}
+	},
+	onDragScroll: function(e) {
+		if (!this.drag) {
+			return;
+		}
+		if (this.dragIcon) {
+			var that = this;
+			if (this.raf) {
+				window.cancelAnimationFrame(this.raf);
+				this.raf = null;
+			}
+			this.raf = window.requestAnimationFrame(function() {
+				that.raf = null;
+				var deltaY = document.body.scrollTop - that.scrollTop;
+				var deltaX = document.body.scrollLeft - that.scrollLeft;
+
+				that.dragIcon && that.dragIcon.onDragScroll(deltaX, deltaY);
+				that.scrollTop = document.body.scrollTop;
+				that.scrollLeft = document.body.scrollLeft;
+			});
+		}
+	}
+};
+
+function MainManager(root, gridSize) {
+	this.root = root;
+	this.gridSize = gridSize;
+	this.cells = [];
+	this.icons = [];
+	this.dragManager = null;
+	this.wobbleActive = false;
+	this.wobbleManager = null;
+}
+
+MainManager.prototype = {
+/*
+	getFreeCell:function(){
+		for (var c=0;c<this.cells.length;c++)	{
+			if (this.cells[c].icon === null) {
+				return this.cells[c];
+			}
+		}
+	},
+*/
+	isDraggable: function(el) {
+		return el.classList && el.classList.contains('icon-item');
+	},
+	startWobble: function(){
+		this.root.classList.add('wobble');
+		this.wobbleActive = true;
+		this.dragManager.enabled = true;
+	},
+	endWobble: function() {
+		this.root.classList.remove('wobble');
+		this.wobbleActive = false;
+		this.dragManager.enabled = false;
+	},
+	getCellByCoordinates: function(left, top) {
+		var foundCell = null;
+		for (var i=0; i<this.cells.length; i++) {
+			if (this.cells[i].coordsInside(left, top)) {
+				foundCell = this.cells[i];
+			}
+		}
+		return foundCell;
+	},
+	removeIcon: function(icon) {
+		var targetCell = icon.cell;
+		targetCell.icon = null;
+		icon.cell = null;
+		// animate zoom in then delete
+		var that = this;
+		icon.disappear().then(function(){
+			var targetCellIndex = that.cells.indexOf(targetCell);
+			for (var c=targetCellIndex+1;c<that.cells.length;c++) {
+				var nextCell = that.cells[c];
+				var prevCell = that.cells[c-1];
+				if (nextCell.icon) {
+					var nextIcon = nextCell.icon;
+					nextCell.icon = null;
+					nextIcon.bindTo(prevCell, true);
+				}
+			}
+		});
+	},
+	reGenerateLayout: function(images) {
+		var getScrollWidth = function() {
+			let scrollbox = document.createElement('div');
+			// Make box scrollable
+			scrollbox.style.overflow = 'scroll';
+			// Append box to document
+			document.body.appendChild(scrollbox);
+			// Measure inner width of box
+			var scrollBarWidth = scrollbox.offsetWidth - scrollbox.clientWidth;
+			// Remove box
+			document.body.removeChild(scrollbox);
+			return scrollBarWidth;
+	  };
+
+		var rootWidth = this.root.offsetWidth;
+//		var rootHeight = this.root.offsetHeight;
+		var gridWidth = Math.floor(rootWidth/gridSize);
+		var willScrollbarAppear = Math.ceil(images.length/gridWidth)*gridSize > this.root.offsetHeight;
+
+//console.log('viewportWidth', this.root.offsetWidth, 'viewportHeight', this.root.offsetHeight, 'gridSize', gridSize, 'gridWidth', gridWidth, 'willScrollbarAppear', willScrollbarAppear);
+		if (willScrollbarAppear) {
+			var scrollbarWidth = getScrollWidth();
+			gridWidth = Math.floor((rootWidth-scrollbarWidth)/gridSize);
+//console.log('scrollbarWidth', scrollbarWidth, 'new gridWidth', gridWidth);
+		}
+
+//console.log(this.root.offsetWidth, this.root.clientWidth, 'willScrollbarAppear', willScrollbarAppear);
+
+		window.requestAnimationFrame(() => {
+			var existingIcons = [];
+			this.cells.forEach(function(cell) {
+				if (cell.icon) {
+					cell.icon.cell = null;
+					existingIcons.push(cell.icon);
+				}
+				cell.destroy();
+			});
+
+			this.cells = [];
+			this.icons = [];
+
+			var createCell = function() {
+				var cellIndex = manager.cells.length;
+				var j = Math.floor(cellIndex/(gridWidth));
+				var i = cellIndex%gridWidth;
+				var cell = new GridCell(manager, gridSize, i*gridSize, j*gridSize);
+				manager.cells.push(cell);
+				cell.debugTo(root);
+				return cell;
+			};
+
+			var that = this;
+			existingIcons.forEach(function(icon) {
+				var cell = createCell();
+				if (cell) {
+					icon.bindTo(cell, true);
+					that.icons.push(icon);
+				} else {
+					icon.disappear();
+				}
+			});
+	  
+			for (var i=existingIcons.length; i<images.length; i++) {
+				var cell = createCell();
+				if (cell) {
+					var icon = new GridIcon(this, iconSize, 'Dark.png/'+images[i]);
+					that.icons.push(icon);
+					icon.bindTo(cell, false);
+					icon.appear();
+				}
+			}
+//window.setTimeout(function(){
+//	console.log(this.root.offsetWidth, this.root.clientWidth);
+//}, 100);
+		});
+	}
+};
+
+var root = document.querySelector('.grid-container');
+
+var manager = new MainManager(root, gridSize);
+manager.dragManager = new IconDragManager(manager, document);
+manager.wobbleManager = new WobbleManager(manager, document, wobbleDetectionTime);
+
+
+var images = [
+	'Activity.png', 'Al%20Rajhi.png', 'Appstore.png', 'Behance.png', 'Book.png', 'Boubyan%20Bank.png', 'Calculator.png', 'Calender.png', 'Camera.png', 'Chrome.png', 
+	'Clock.png', 'Contacts.png', 'Currency.png', 'Deliveroo.png', 'Dribbble.png', 'Dropbox.png', 'Facebook.png', 'Facetime.png', 'Files.png', 'Food%20_%20Delivery.png', 'Health.png', 
+	'Instagram.png', 'KFH%20Online.png', 'Lightroom.png', 'LinkedIn.png', 'Mail.png', 'Map.png', 'Messages.png', 'Music.png', 'NBK%20.png', 'Netflix.png', 'Nike.png', 'Notes.png', 'NRC.png', 
+	'Phone.png', 'Photos.png', 'Podcast.png', 'Quran.png', 'Reminders.png', 'Safari.png', 'Settings.png', 'Snapchat.png', 'Telegram.png', 'TikTok.png', 'Translater.png', 
+	'Twitter.png', 'Wallet.png', 'Watch.png', 'Weather.png', 'Whatsapp.png', 'Youtube.png'
+];
+images.sort(() => .5 - Math.random());
+
+manager.reGenerateLayout(images);
+
+window.onresize = function() {
+	manager.reGenerateLayout(images);
+};
+
+//manager.startWobble();
+
+</script>
+</body>
+</html>
