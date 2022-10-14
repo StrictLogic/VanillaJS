@@ -4,59 +4,23 @@
 <title>Icons</title>
 <style type="text/css">
 /* icons by https://dribbble.com/shots/14276784-iOS-14-iCon-Dark-v2 */
-.grid-container {position:relative;width:100%;height:100%;}
+.grid-container {position:relative;width:100%;height:100%;margin-top:100px;}
 .grid-container.wobble {background:#e0e0e0;}
 .grid-container.wobble .icon-item {cursor:pointer;animation: jiggle 0.2s infinite;}
 .grid-container.wobble .icon-item-delete {display:block;}
-.cell-grid-item {position:absolute;z-index:1;/*border:1px solid #c90;box-sizing:border-box;*/pointer-events:none;}
+.cell-grid-item {position:absolute;z-index:1;/*border:1px solid #c90;*/box-sizing:border-box;pointer-events:none;}
 .cell-grid-item.hilite {border:1px solid #f00;}
-.icon-item {position:absolute;z-index:2;border-radius:10%;
-background-repeat:no-repeat;
-background-position:50% 50%;
-background-color:#222220;background-size:contain;text-align:center;font-family:sans-serif;}
-.icon-item.dragged {z-index:3;/*transform:scale(1.2);transition:transform 0.2s ease-in-out;*/}
-.icon-item.transitioned {
-	animation: none !important;
-	transition:all 0.2s ease-in-out;
-}
-.icon-item.transitioned2 {
-	animation: none !important;
-	transition:all 0.3s ease-in-out;
-}
-.icon-item.transitioned .icon-item-delete {
-	display:none;
-}
-.icon-item-delete {
-	display:none;
-	position:absolute;
-	right:0;
-	top:0;
-	border-radius:50%;
-	border:1px solid #ccc;
-	transform: translate(50%,-50%);
-	border:2px solid #333;
-	background:#fff;
-}
-.icon-item-delete:before {
-	content:'';
-	background:#fff url(delete.svg) no-repeat 50% 50%;
-	backgrond-size:none;
-	position:relative;
-	top:20%;
-	left: 20%;
-	display:block;
-	width:60%;
-	height:60%;
-}
-body {
-	background:#e0e0e0;
-	user-select:none !important;
-	padding:0;margin:0;
-}
-.body-while-dragging {
-	pointer-events: none !important;
-}
-
+.icon-item {box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.5);position:absolute;z-index:2;border-radius:10%;background-repeat:no-repeat;background-position:50% 50%;background-color:#222220;background-size:contain;text-align:center;font-family:sans-serif;}
+.icon-item.dragged {z-index:3;}
+.icon-item.transitioned {animation: none !important;transition:all 0.2s ease-in-out;}
+.icon-item.transitioned2 {animation: none !important;transition:all 0.3s ease-in-out;}
+.icon-item.transitioned .icon-item-delete {}
+.icon-item-text {position:absolute;text-align:center;font-size:12px;line-height:18px;overflow:hidden;padding-top:5px;}
+.icon-item-delete {display:none;position:absolute;right:0;top:0;border-radius:50%;border:1px solid #ccc;transform: translate(50%,-50%);border:2px solid #333;background:#fff;}
+.icon-item-delete:before {content:'';background:#fff url(delete.svg) no-repeat 50% 50%;backgrond-size:none;position:relative;top:20%;left: 20%;display:block;width:60%;height:60%;}
+body {background:#e0e0e0;user-select:none !important;padding:0;margin:0;font-family: sans-serif;}
+.instruction-text {box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);background:#ccc;text-align:center;height:100px;position:absolute;top:-100%;left:0;right:0;display:flex;flex-direction:column;justify-content:center;transition:all 1s ease-in-out;}
+.body-while-dragging {pointer-events: none !important;}
 @keyframes jiggle {
 	0% {
 		transform: rotate(-1.5deg);
@@ -68,6 +32,7 @@ body {
 </style>
 </head>
 <body>
+<div class="instruction-text">Demo: Drag &amp; Drop in IOS-style</div>
 <div class="grid-container">
 
 </div>
@@ -109,7 +74,7 @@ GridCell.prototype = {
 	}
 }
 
-function GridIcon(manager, size, backgroundImage) {
+function GridIcon(manager, size, backgroundImage, title, gridSize) {
 	this.manager = manager;
 	this.dragX = 0;
 	this.dragY = 0;
@@ -119,7 +84,7 @@ function GridIcon(manager, size, backgroundImage) {
 	this.left = 0;
 	this.dragTop = 0;
 	this.dragLeft = 0;
-	this.debug = backgroundImage;;
+	this.debug = backgroundImage;
 	var iconItem = document.createElement('div');
 	iconItem.title = backgroundImage;
 	iconItem.className = 'icon-item';
@@ -140,6 +105,15 @@ function GridIcon(manager, size, backgroundImage) {
 		return false;
 	};
 	iconItem.appendChild(del);
+
+	var text = document.createElement('div');
+	text.className = 'icon-item-text';
+	text.style.width = gridSize+'px';
+	text.style.top = size+'px';
+	text.style.left = (-(gridSize - size)/2)+'px';
+	text.innerText = title;
+	iconItem.appendChild(text);
+
 	manager.root.appendChild(iconItem);
 	this.iconElement = iconItem;
 }
@@ -226,7 +200,7 @@ GridIcon.prototype = {
 					iconsToMove.push(cells[index].icon);
 					cells[index].icon = null;
 				}
-				for (var index=0;index<iconsToMove.length;index++) {
+				for (var index=0; index<iconsToMove.length; index++) {
 					iconsToMove[index].bindTo(cells[newCellIndex + index + 1], true);
 				}
 			} else if (newCellIndex>oldCellIndex) {
@@ -234,7 +208,7 @@ GridIcon.prototype = {
 					iconsToMove.push(cells[index].icon);
 					cells[index].icon = null;
 				}
-				for (var index=0;index<iconsToMove.length;index++) {
+				for (var index=0; index<iconsToMove.length; index++) {
 					iconsToMove[index].bindTo(cells[newCellIndex - index - 1], true);
 				}
 			}
@@ -344,6 +318,9 @@ IconDragManager.prototype = {
 		}
 		var el = e.target;
 		if (this.manager.isDraggable(el)) {
+			if (el.classList.contains('icon-item-text')) {
+				el = el.parentNode;
+			}
 			this.document.body.classList.add('body-while-dragging');
 			var iconToDrag = this.getIcons().find(function(icon){return icon.iconElement == el});
 			if (iconToDrag) {
@@ -423,7 +400,7 @@ MainManager.prototype = {
 	},
 */
 	isDraggable: function(el) {
-		return el.classList && el.classList.contains('icon-item');
+		return el.classList && (el.classList.contains('icon-item') || el.classList.contains('icon-item-text'));
 	},
 	startWobble: function(){
 		this.root.classList.add('wobble');
@@ -480,12 +457,16 @@ MainManager.prototype = {
 		var rootWidth = this.root.offsetWidth;
 //		var rootHeight = this.root.offsetHeight;
 		var gridWidth = Math.floor(rootWidth/gridSize);
+		var centerShift = Math.floor((rootWidth - gridWidth*gridSize)/2);
+
 		var willScrollbarAppear = Math.ceil(images.length/gridWidth)*gridSize > this.root.offsetHeight;
 
 //console.log('viewportWidth', this.root.offsetWidth, 'viewportHeight', this.root.offsetHeight, 'gridSize', gridSize, 'gridWidth', gridWidth, 'willScrollbarAppear', willScrollbarAppear);
 		if (willScrollbarAppear) {
 			var scrollbarWidth = getScrollWidth();
-			gridWidth = Math.floor((rootWidth-scrollbarWidth)/gridSize);
+			rootWidth-=scrollbarWidth;
+			gridWidth = Math.floor((rootWidth)/gridSize);
+			centerShift = Math.floor((rootWidth - gridWidth*gridSize)/2);
 //console.log('scrollbarWidth', scrollbarWidth, 'new gridWidth', gridWidth);
 		}
 
@@ -508,7 +489,7 @@ MainManager.prototype = {
 				var cellIndex = manager.cells.length;
 				var j = Math.floor(cellIndex/(gridWidth));
 				var i = cellIndex%gridWidth;
-				var cell = new GridCell(manager, gridSize, i*gridSize, j*gridSize);
+				var cell = new GridCell(manager, gridSize, centerShift+ i*gridSize, j*gridSize);
 				manager.cells.push(cell);
 				cell.debugTo(root);
 				return cell;
@@ -528,7 +509,7 @@ MainManager.prototype = {
 			for (var i=existingIcons.length; i<images.length; i++) {
 				var cell = createCell();
 				if (cell) {
-					var icon = new GridIcon(this, iconSize, 'Dark.png/'+images[i]);
+					var icon = new GridIcon(this, iconSize, 'Dark.png/'+images[i].image, images[i].title, gridSize);
 					that.icons.push(icon);
 					icon.bindTo(cell, false);
 					icon.appear();
@@ -549,11 +530,57 @@ manager.wobbleManager = new WobbleManager(manager, document, wobbleDetectionTime
 
 
 var images = [
-	'Activity.png', 'Al%20Rajhi.png', 'Appstore.png', 'Behance.png', 'Book.png', 'Boubyan%20Bank.png', 'Calculator.png', 'Calender.png', 'Camera.png', 'Chrome.png', 
-	'Clock.png', 'Contacts.png', 'Currency.png', 'Deliveroo.png', 'Dribbble.png', 'Dropbox.png', 'Facebook.png', 'Facetime.png', 'Files.png', 'Food%20_%20Delivery.png', 'Health.png', 
-	'Instagram.png', 'KFH%20Online.png', 'Lightroom.png', 'LinkedIn.png', 'Mail.png', 'Map.png', 'Messages.png', 'Music.png', 'NBK%20.png', 'Netflix.png', 'Nike.png', 'Notes.png', 'NRC.png', 
-	'Phone.png', 'Photos.png', 'Podcast.png', 'Quran.png', 'Reminders.png', 'Safari.png', 'Settings.png', 'Snapchat.png', 'Telegram.png', 'TikTok.png', 'Translater.png', 
-	'Twitter.png', 'Wallet.png', 'Watch.png', 'Weather.png', 'Whatsapp.png', 'Youtube.png'
+	{title:'Activity', image:'Activity.png'},
+	{title:'Al Rajhi', image:'Al%20Rajhi.png'},
+	{title:'Appstore', image:'Appstore.png'},
+	{title:'Behance', image:'Behance.png'},
+	{title:'Book', image:'Book.png'},
+	{title:'Boubyan Bank', image:'Boubyan%20Bank.png'},
+	{title:'Calculator', image:'Calculator.png'},
+	{title:'Calender', image:'Calender.png'},
+	{title:'Camera', image:'Camera.png'},
+	{title:'Chrome', image:'Chrome.png'},
+	{title:'Clock', image:'Clock.png'},
+	{title:'Contacts', image:'Contacts.png'},
+	{title:'Currency', image:'Currency.png'},
+	{title:'Deliveroo', image:'Deliveroo.png'},
+	{title:'Dribbble', image:'Dribbble.png'},
+	{title:'Dropbox', image:'Dropbox.png'},
+	{title:'Facebook', image:'Facebook.png'},
+	{title:'Facetime', image:'Facetime.png'},
+	{title:'Files', image:'Files.png'},
+	{title:'Food & Delivery', image:'Food%20_%20Delivery.png'},
+	{title:'Health', image:'Health.png'},
+	{title:'Instagram', image:'Instagram.png'},
+	{title:'KFH Online', image:'KFH%20Online.png'},
+	{title:'Lightroom', image:'Lightroom.png'},
+	{title:'LinkedIn', image:'LinkedIn.png'},
+	{title:'Mail', image:'Mail.png'},
+	{title:'Map', image:'Map.png'},
+	{title:'Messages', image:'Messages.png'},
+	{title:'Music', image:'Music.png'},
+	{title:'NBK', image:'NBK%20.png'},
+	{title:'Netflix', image:'Netflix.png'},
+	{title:'Nike', image:'Nike.png'},
+	{title:'Notes', image:'Notes.png'},
+	{title:'NRC', image:'NRC.png'},
+	{title:'Phone', image:'Phone.png'},
+	{title:'Photos', image:'Photos.png'},
+	{title:'Podcast', image:'Podcast.png'},
+	{title:'Quran', image:'Quran.png'},
+	{title:'Reminders', image:'Reminders.png'},
+	{title:'Safari', image:'Safari.png'},
+	{title:'Settings', image:'Settings.png'},
+	{title:'Snapchat', image:'Snapchat.png'},
+	{title:'Telegram', image:'Telegram.png'},
+	{title:'TikTok', image:'TikTok.png'},
+	{title:'Translater', image:'Translater.png'},
+	{title:'Twitter', image:'Twitter.png'},
+	{title:'Wallet', image:'Wallet.png'},
+	{title:'Watch', image:'Watch.png'},
+	{title:'Weather', image:'Weather.png'},
+	{title:'Whatsapp', image:'Whatsapp.png'},
+	{title:'Youtube', image:'Youtube.png'},
 ];
 images.sort(() => .5 - Math.random());
 
@@ -562,6 +589,12 @@ manager.reGenerateLayout(images);
 window.onresize = function() {
 	manager.reGenerateLayout(images);
 };
+
+var instr = document.querySelector('.instruction-text');
+instr.style.top = '0';
+window.setTimeout(function() {
+	instr.style.top = '-100%';
+}, 10000);
 
 //manager.startWobble();
 
