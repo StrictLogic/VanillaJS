@@ -19,8 +19,9 @@
 .icon-item-delete {display:none;position:absolute;right:0;top:0;border-radius:50%;border:1px solid #ccc;transform: translate(50%,-50%);border:2px solid #333;background:#fff;}
 .icon-item-delete:before {content:'';background:#fff url(delete.svg) no-repeat 50% 50%;backgrond-size:none;position:relative;top:20%;left: 20%;display:block;width:60%;height:60%;}
 body {background:#e0e0e0;user-select:none !important;padding:0;margin:0;font-family: sans-serif;}
-.instruction-text {box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);background:#ccc;text-align:left;height:40px;position:absolute;top:-100%;left:0;right:0;display:flex;flex-direction:column;justify-content:center;transition:all 1s ease-in-out;}
-.body-while-dragging {pointer-events: none !important;}
+.instruction-text {box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);background:#ccc;text-align:center;height:100px;position:absolute;top:-100%;left:0;right:0;display:flex;flex-direction:column;justify-content:center;transition:all 1s ease-in-out;}
+.body-while-dragging {pointer-events: none !important;/*touch-action: none !important;*/}
+* {user-select:none !important;-webkit-user-select:none !important;}
 @keyframes jiggle {
 	0% {
 		transform: rotate(-1.5deg);
@@ -32,7 +33,7 @@ body {background:#e0e0e0;user-select:none !important;padding:0;margin:0;font-fam
 </style>
 </head>
 <body>
-<div class="instruction-text">Demo: Drag &amp; Drop in IOS-style. Press and hold mouse button for 1 second to enable drag-n-drop.</div>
+<div class="instruction-text">Demo: Drag &amp; Drop in IOS-style</div>
 <div class="grid-container">
 
 </div>
@@ -169,16 +170,16 @@ GridIcon.prototype = {
 			el.style.left = this.left + 'px';
 		}
 	},
-	onDragStart: function(e) {
-		this.dragX = e.pageX;
-		this.dragY = e.pageY;
-		this.dragLeft = this.left + (-this.dragX + e.pageX);
-		this.dragTop = this.top + (-this.dragY + e.pageY);
+	onDragStart: function(x,y) {
+		this.dragX = x;
+		this.dragY = y;
+		this.dragLeft = this.left + (-this.dragX + x);
+		this.dragTop = this.top + (-this.dragY + y);
 		this.iconElement.classList.add('dragged');
 	},
-	onDragMove: function(e) {
-		this.dragLeft = this.left + (-this.dragX + e.pageX);
-		this.dragTop = this.top + (-this.dragY + e.pageY);
+	onDragMove: function(x,y) {
+		this.dragLeft = this.left + (-this.dragX + x);
+		this.dragTop = this.top + (-this.dragY + y);
 		this.onDragChange();
 	},
 	onDragScroll: function(deltaX, deltaY) {
@@ -216,7 +217,7 @@ GridIcon.prototype = {
 			cells[newCellIndex].icon = this;
 		}
 	},
-	onDragEnd: function(e) {
+	onDragEnd: function() {
 		this.bindTo(this.cell, true);
 		this.iconElement.classList.remove('dragged');
 	},
@@ -230,7 +231,13 @@ function WobbleManager(manager, document, wobbleDetectionTime) {
 	document.addEventListener('mousedown', function(e) {
 		that.wobbleDetectionStart(e);
 	});
+	document.addEventListener('touchstart', function(e) {
+		that.wobbleDetectionStart(e);
+	});
 	document.addEventListener('mouseup', function(e) {
+		that.wobbleDetectionEnd();
+	});
+	document.addEventListener('touchend', function(e) {
 		that.wobbleDetectionEnd();
 	});
 }
@@ -276,22 +283,48 @@ function IconDragManager(manager, document) {
 		mouseDownEvent = e;
 		that.mouseDown = true;
 	});
+	document.addEventListener('touchstart', function(e) {
+		mouseDownEvent = e;
+		that.mouseDown = true;
+	});
 
 	document.addEventListener('mouseup', function(e) {
 		that.mouseDown = false;
-		e.target.ownerDocument.onselectstart = null;
+//		e.target.ownerDocument.onselectstart = null;
+		that.onDragEnd(e);
+	});
+	document.addEventListener('touchend', function(e) {
+		that.mouseDown = false;
+//		e.target.ownerDocument.onselectstart = null;
 		that.onDragEnd(e);
 	});
 
 	document.addEventListener('mousemove', function(e) {
 		// TODO add possible number of pixel shift before drag can start to tolerate "shifty clicks" or touches
+		var x = e.pageX;
+		var y = e.pageY;
 		if (that.mouseDown && !that.drag) {
-			that.onDragStart(e);
+			that.onDragStart(e.target, x, y);
 		}
 		if (that.drag) {
-			that.onDragMove(e);
+			that.onDragMove(x, y);
+			that.tryAutoScrollY(y);
 		}
 	});
+
+	document.addEventListener('touchmove', function(e) {
+		// TODO add possible number of pixel shift before drag can start to tolerate "shifty clicks" or touches
+		var x = e.touches[0].clientX;
+		var y = e.touches[0].clientY;
+		if (that.mouseDown && !that.drag) {
+			that.onDragStart(e.target, x, y);
+		}
+		if (that.drag) {
+			e.preventDefault();
+			that.onDragMove(x, y);
+			that.tryAutoScrollY(y);
+		}
+	}, {passive: false});
 
 	document.addEventListener('mousewheel', function(e) {
 		if (that.mouseDown && !that.drag) {
@@ -300,6 +333,7 @@ function IconDragManager(manager, document) {
 	});
 
 	window.addEventListener('scroll', function(e) {
+//console.log('screoll event!!!')
 		if (that.drag) {
 			that.onDragScroll(e);
 		}
@@ -311,12 +345,25 @@ IconDragManager.prototype = {
 	getIcons: function(){
 		return this.manager.icons;
 	},
-
-	onDragStart: function(e)  {
+	tryAutoScrollY: function(y) {
+		var contentHeight = document.body.scrollHeight;
+		var viewportHeight = window.innerHeight;
+		var scrollTop = document.body.scrollTop;
+		var diff = contentHeight - (scrollTop+y);
+		var that = this;
+//		console.log('tryAutoScrollY y', y, 'viewportHeight', viewportHeight, 'scrollTop', scrollTop, 'gridSize', this.manager.gridSize, 'contentHeight', contentHeight, 'diff', diff);
+		if (y>(viewportHeight-this.manager.gridSize) && diff>0) {
+			window.scrollBy({top: this.manager.gridSize, behavior: 'smooth'});
+//			that.dragIcon && that.dragIcon.onDragScroll(0, this.manager.gridSize);
+		} else if ((y-scrollTop)<(this.manager.gridSize)) {
+//			that.dragIcon && that.dragIcon.onDragScroll(0, -this.manager.gridSize);
+			window.scrollBy({top: -this.manager.gridSize, behavior: 'smooth'});
+		}
+	},
+	onDragStart: function(el, x, y)  {
 		if (!this.enabled) {
 			return;
 		}
-		var el = e.target;
 		if (this.manager.isDraggable(el)) {
 			if (el.classList.contains('icon-item-text')) {
 				el = el.parentNode;
@@ -328,7 +375,7 @@ IconDragManager.prototype = {
 				this.scrollTop = document.body.scrollTop;
 				this.scrollLeft = document.body.scrollLeft;
 				this.dragIcon = iconToDrag;
-				this.dragIcon.onDragStart(e);
+				this.dragIcon.onDragStart(x, y);
 			}
 		}
 	},
@@ -336,11 +383,11 @@ IconDragManager.prototype = {
 		this.document.body.classList.remove('body-while-dragging');
 		this.drag = false;
 		if (this.dragIcon) {
-			this.dragIcon.onDragEnd(e);
+			this.dragIcon.onDragEnd();
 			this.dragIcon = null;
 		}
 	},
-	onDragMove: function(e) {
+	onDragMove: function(x, y) {
 		if (!this.drag) {
 			return;
 		}
@@ -352,7 +399,7 @@ IconDragManager.prototype = {
 			}
 			this.raf = window.requestAnimationFrame(function() {
 				that.raf = null;
-				that.dragIcon && that.dragIcon.onDragMove(e);
+				that.dragIcon && that.dragIcon.onDragMove(x,y);
 			});
 		}
 	},
